@@ -2,8 +2,6 @@
 
 > A multi-agent pipeline harness that self-optimizes its own topology. A meta-agent edits stage prompts, tool assignments, turn budgets, and pipeline structure — then reruns the benchmark, checks the score, keeps or discards the change, and repeats.
 
-Instead of a single agent with one prompt and one tool pool, AutoSwarm runs a pipeline of specialized agents (`explore → plan → execute → verify`). The meta-agent's edit surface is `pipeline_spec.yaml` — the topology config — rather than a monolithic Python file.
-
 ## How it works
 
 - **`pipeline_spec.yaml`** — the topology the meta-agent edits. Defines stages (system prompt, tools, turn budget, output format) and handoffs (token budget, context format) between them. This is the primary edit surface.
@@ -156,7 +154,7 @@ killall Docker && open -a Docker
 
 ## Built on AutoAgent
 
-AutoSwarm is built on top of [AutoAgent](https://github.com/thirdlayer/autoagent) by [thirdlayer](https://www.thirdlayer.inc) — the original single-agent self-improvement loop. The core experiment loop, Harbor integration, `agent.py` harness, and `program.md` format are inherited directly. AutoSwarm extends the edit surface from a single agent to a multi-agent pipeline topology.
+AutoSwarm is built on top of [AutoAgent](https://github.com/thirdlayer/autoagent) — the original single-agent self-improvement loop. The core experiment loop, Harbor integration, `agent.py` harness, and `program.md` format are inherited directly. AutoSwarm extends the edit surface from a single agent to a multi-agent pipeline topology.
 
 ## License
 
