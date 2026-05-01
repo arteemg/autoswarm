@@ -1,143 +1,165 @@
 # Pipeline AutoSwarm
 
-You are a meta-agent that improves a multi-agent pipeline harness.
-Your primary edit surface is `pipeline_spec.yaml`, not `pipeline.py` directly.
-The goal is the same as the original AutoAgent: maximize `passed` tasks.
+You are a meta-agent improving a multi-agent pipeline harness.
+The goal, inherited from AutoAgent, is to maximize `passed` tasks.
 
-## Setup
+The first run is always the unmodified baseline: the shipped
+`pipeline_spec.yaml` has one `vanilla-agent` stage. From there the
+topology is yours to design. There is no canonical pipeline shape —
+invent the agents, name them, and wire them together however the
+failure modes demand.
 
-Before starting:
+Your job is not to solve benchmark tasks. Your job is to improve
+the pipeline so the agents inside it solve tasks better. Do not
+change the `model:` field in `pipeline_spec.yaml` from `gpt-5`
+unless the human explicitly says otherwise — keep the variable
+under test the topology, not the underlying capability.
 
-1. Read `README.md`, `program.md`, `pipeline.py`, and `pipeline_spec.yaml`.
-2. Read a representative sample of task instructions and verifier code.
-3. Build the base image and verify `pipeline.py` imports cleanly:
-   ```bash
-   docker build -f Dockerfile.base -t autoswarm-base .
-   uv run python -c "from pipeline import AutoAgent"
-   ```
-4. Initialize `results.tsv` if it does not exist (use the extended schema below).
+## Edit surfaces
 
-The first run is always the unmodified baseline.
+**`pipeline_spec.yaml`** Stage fields (`system_prompt`,
+`tools`, `max_turns`, `output_format`, `model`) and inter-stage
+handoffs (`token_budget`, `format`, `include_raw_output`). You can
+add, remove, or reorder stages.
 
-## How to Run
+**`pipeline.py` — only above `FIXED ADAPTER BOUNDARY`.**
+Reach for it when YAML alone can't express the change: new tool
+factories (`make_*_tool`), agent construction (`build_stage_agent`),
+handoff compression (`compress_handoff`), or orchestration in
+`run_task` (branching, retries).
 
-```bash
-rm -rf jobs; mkdir -p jobs && uv run harbor run -p tasks/ -n 100 \
-  --agent-import-path pipeline:AutoAgent -o jobs --job-name latest > run.log 2>&1
-```
+Per-stage `max_turns` must sum to ≤ `pipeline.max_total_turns`. Trade
+turns between stages; do not inflate the global budget.
 
-## What You Can Edit in pipeline_spec.yaml
+## The loop
 
-### Stage-level (high value)
-- `system_prompt` for any stage
-- `tools` per stage — add or remove `run_shell`
-- `max_turns` per stage
-- `output_format` per stage (`bullet_list` | `json` | `prose` | `structured_json`)
-- `model` per stage (inherits `pipeline.model` if omitted)
+1. Read `run.log`, `results.tsv`, and the most recent
+   `stage_traces.json` under `jobs/`.
+2. Score per-stage outputs with `evaluator.py` (see below).
+3. Identify the lowest-scoring stage; group failures by root cause.
+4. Pick the edit that unblocks the largest cluster of failing tasks
+   (see Triage below). One edit per iteration.
+5. Commit.
+6. Rerun and append a row to `results.tsv`.
+7. Decide keep or discard. Repeat.
 
-### Handoff-level (medium value)
-- `token_budget` between stages
-- `format` of context passed
-- `include_raw_output` flag
+**Triage.** Sort fixes by how many unsolved tasks they unblock —
+not by how interesting the bug is, and not by how cheap the edit is.
+The failure mode to avoid: burning iterations on 2 hard outliers
+while 10 cheaper failures share a single root cause that one prompt
+or handoff edit would clear. Going wide on a shared cause is how you
+hit 80%; chasing outliers is how you get a war story.
+Each iteration:
 
-### Structural (high risk, high reward)
-- Add a new stage (insert anywhere in the sequence)
-- Remove a stage (merge its responsibility into an adjacent stage)
-- Reorder stages
+1. **Cluster failures by root cause.** Read `stage_traces.json`
+   across every failing task and group them — same missing
+   instruction, same truncated handoff, same missing tool, same
+   stage hitting `max_turns`. Write the clusters down with counts.
+2. **Attack the largest cluster first.** Pick the edit that fixes
+   the most tasks at once.
+3. **Within a cluster, prefer the lighter edit:** prompt > budget
+   tweak > tool wiring > reorder/merge > new stage or `run_task`
+   rewrite. Gate the last tier with the structural-change checklist
+   below.
 
-Turn budgets must stay within `pipeline.max_total_turns` in total.
-If you raise one stage's `max_turns`, reduce another's.
+## Tool and agent strategy
 
-## What You Can Edit in pipeline.py
+Prompt tuning has diminishing returns; tool design is high-leverage.
+A single `run_shell` forces every stage to rewrite boilerplate, burn
+tokens parsing stdout, and recover from errors blindly. Specialized
+tools win because they:
 
-Everything above the `FIXED ADAPTER BOUNDARY` comment:
-- `PIPELINE_SPEC_PATH` — if you want to rename the spec file
-- `make_shell_tool()` — add new tool types (e.g. `read_file`, `write_file`)
-- `build_stage_agent()` — change agent construction
-- `compress_handoff()` — improve context compression (currently naive truncation)
-- `run_task()` — change orchestration logic (e.g. conditional branching, retry)
+- surface **structured data** instead of raw stdout,
+- return **actionable error messages** the model can react to,
+- match **name-based priors** — models pattern-match the tool name
+  before reading the description, so call it `read_file`, not `io`.
 
-## Running the Stage Evaluator
+The Agents SDK also supports `agent.as_tool()`: wrap a stage agent
+as a callable tool that another stage can invoke. Natural uses
+here: a verifier the executor calls before declaring done; a
+planner the solver consults on demand. This is the cheapest way to
+add structure without committing to a new linear stage — but it's
+a `pipeline.py` edit (extend `build_stage_agent` to wrap one stage
+as a tool of another), not a YAML-only change.
 
-After each run, score stage traces with:
+### Run
 
-```bash
-for task_dir in jobs/latest/*/; do
-  traces="$task_dir/logs/stage_traces.json"
-  instr="$(cat tasks/$(basename $task_dir)/instruction.md 2>/dev/null || echo '')"
-  [ -f "$traces" ] && uv run python evaluator.py "$traces" --instruction "$instr"
+\`\`\`bash
+uv run harbor run \\
+--dataset terminal-bench@2.0 \\
+--agent-import-path pipeline:AutoAgent \\
+--n-concurrent 12 --n-tasks 89 --env-file .env
+\`\`\`
+
+**IMPORTANT** Start with `--n-tasks 15` to triage cheaply. Once
+you clear 80% on 15, double the count each iteration until you
+reach 89.
+
+### Score stages
+
+\`\`\`bash
+RUN_DIR=$(ls -td jobs/*/ | head -1)
+for task_dir in "${RUN_DIR}"/\*/; do
+traces="$task_dir/logs/stage_traces.json"
+  instr="$(cat tasks/$(basename "$task_dir")/instruction.md 2>/dev/null || echo '')"
+[ -f "$traces" ] && uv run python evaluator.py "$traces" --instruction "$instr"
 done
-```
+\`\`\`
 
-This produces per-stage scores (`explore:0.82,plan:0.71,...`) for `results.tsv`.
+Emits `stage_id:score` lines for the `stage_scores` column.
 
-## Logging Results
+### Record
 
-```
-commit	avg_score	passed	task_scores	stage_scores	pipeline_topology	cost_usd	status	description
-```
+\`\`\`
+commit avg_score passed task_scores stage_scores pipeline_topology cost_usd status description
+\`\`\`
 
-- `stage_scores`: per-stage judge averages, e.g. `explore:0.82,plan:0.71,execute:0.65,verify:0.88`
-- `pipeline_topology`: stage sequence at time of run, e.g. `explore→plan→execute→verify`
+`pipeline_topology` is the runtime stage path
+(e.g. `explore→plan→execute→verify`).
 
-## Experiment Loop
+## Decision rules
 
-1. Check the current branch and commit.
-2. Read the latest `run.log` and recent task-level results.
-3. Run the stage evaluator on failed tasks to get per-stage scores.
-4. Identify which stage has the lowest scores or most failures.
-5. Group failures by root cause and affected stage.
-6. Choose one targeted improvement (stage prompt, handoff budget, or structure).
-7. Edit `pipeline_spec.yaml` (or `pipeline.py` if tool-level change is needed).
-8. Commit the change.
-9. Rebuild and rerun the task suite.
-10. Record results in `results.tsv`.
-11. Decide keep or discard.
+**Keep / discard.** Keep if `passed` improved, or if `passed` is flat
+and the pipeline got simpler. Otherwise discard — but still read which
+tasks regressed.
 
-## Credit Assignment
+**Credit assignment.** End-to-end score doesn't localize failure;
+always open `stage_traces.json`. For each failure, name the
+responsible stage by its role — missed files, ambiguous plan,
+deviation or unhandled errors, missed defect — mapped to whatever
+stages currently exist.
 
-When diagnosing failures, identify **which stage** failed:
+**Structural change checklist.** Before adding, removing, or
+reordering a stage, require a yes to one of:
 
-- **explore**: Did it miss files, misread the environment, or skip relevant structure?
-- **plan**: Did it produce an incomplete, wrong, or ambiguous execution plan?
-- **execute**: Did it deviate from plan, hit unhandled errors, or produce wrong artifacts?
-- **verify**: Did it miss an incorrect output, or fail to flag a real problem?
+- _add_ — a class of failures a new specialized stage would prevent
+  that prompt edits to existing stages cannot.
+- _remove_ — the stage measurably improves the next stage's output,
+  not just burning turns.
+- _reorder_ — evidence that a later stage produces information an
+  earlier stage would have used.
 
-Stage-level failures require stage-level fixes. End-to-end score alone is
-insufficient for diagnosis — always read `stage_traces.json` from the trajectory.
+**Overfitting.** "If this exact task disappeared, would this change
+still be a worthwhile improvement?" No → don't make it. No
+task-specific keyword hacks.
 
-## Structural Edit Rules
+## Topology
 
-**Before adding a stage**, ask:
-> "Is there a consistent class of failures that a new specialized agent
-> would prevent, and that the current agents cannot handle even with better prompts?"
+A "stage" is one agent with a role you invent. Example shapes —
+not prescriptions:
 
-**Before removing a stage**, ask:
-> "Does this stage's output actually improve the next stage's performance,
-> or is it just adding latency and burning turns?"
+- _flat_: a single agent (the current baseline).
+- _linear_: e.g. `recon → solve → check`.
+- _explore → plan → execute → verify_: four specialized roles.
+- _solver + critic loop_: execute, verify, retry on FAIL —
+  `run_task` already supports this via `retry_on_verify_failure`.
+- _parallel + synth_: two solvers in parallel, a third picks the
+  better output.
+- _hierarchical_: a planner spawns sub-agents per subtask.
 
-**Before reordering stages**, ask:
-> "Is there evidence that an earlier stage is producing information that
-> arrives too late to be useful?"
+Non-linear control flow goes in `run_task` (see Edit surfaces).
 
-## Keep / Discard Rules
+## Discipline
 
-- If `passed` improved → keep.
-- If `passed` stayed the same and the pipeline is simpler → keep.
-- Otherwise → discard.
-
-Discarded runs still provide signal. Read which tasks regressed and why.
-
-## Overfitting Rule (inherited from AutoAgent)
-
-"If this exact task disappeared, would this pipeline structure still
-be a worthwhile improvement?"
-
-If no → it is probably overfitting. Do not add task-specific hacks or
-hardcoded keyword rules.
-
-## NEVER STOP
-
-Once the experiment loop begins, do NOT stop to ask whether you should continue.
-Do NOT pause at a "good stopping point." Continue iterating until the human
-explicitly interrupts you.
+Once the loop starts, don't pause to ask whether to continue. Iterate
+until the human interrupts.
