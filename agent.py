@@ -26,7 +26,7 @@ from harbor.models.agent.context import AgentContext
 # ============================================================================
 
 SYSTEM_PROMPT = "You are an agent that executes tasks"
-MODEL = "gpt-5"
+MODEL = "gpt-5.4-mini"
 MAX_TURNS = 30
 
 
@@ -93,7 +93,8 @@ def to_atif(result: object, model: str, duration_ms: int = 0) -> dict:
             "source": source,
             "message": message,
         }
-        step.update({key: value for key, value in extra.items() if value is not None})
+        step.update(
+            {key: value for key, value in extra.items() if value is not None})
         return step
 
     pending_tool_call = None
@@ -104,7 +105,8 @@ def to_atif(result: object, model: str, duration_ms: int = 0) -> dict:
                 steps.append(_step("agent", text, model_name=model))
         elif isinstance(item, ReasoningItem):
             summaries = getattr(item.raw_item, "summary", None)
-            reasoning = "\n".join(s.text for s in summaries if hasattr(s, "text")) if summaries else None
+            reasoning = "\n".join(s.text for s in summaries if hasattr(
+                s, "text")) if summaries else None
             if reasoning:
                 steps.append(
                     _step(
@@ -224,9 +226,12 @@ class AutoAgent(BaseAgent):
 
         try:
             final_metrics = atif.get("final_metrics", {})
-            context.n_input_tokens = final_metrics.get("total_prompt_tokens", 0)
-            context.n_output_tokens = final_metrics.get("total_completion_tokens", 0)
-            context.n_cache_tokens = final_metrics.get("total_cached_tokens", 0)
+            context.n_input_tokens = final_metrics.get(
+                "total_prompt_tokens", 0)
+            context.n_output_tokens = final_metrics.get(
+                "total_completion_tokens", 0)
+            context.n_cache_tokens = final_metrics.get(
+                "total_cached_tokens", 0)
         except Exception:
             pass
 

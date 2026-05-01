@@ -11,7 +11,7 @@ failure modes demand.
 
 Your job is not to solve benchmark tasks. Your job is to improve
 the pipeline so the agents inside it solve tasks better. Do not
-change the `model:` field in `pipeline_spec.yaml` from `gpt-5`
+change the `model:` field in `pipeline_spec.yaml` from `gpt-5.4-mini`
 unless the human explicitly says otherwise — keep the variable
 under test the topology, not the underlying capability.
 
