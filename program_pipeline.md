@@ -91,9 +91,24 @@ uv run harbor run \\
 --n-concurrent 12 --n-tasks 89 --env-file .env
 \`\`\`
 
-**IMPORTANT** Start with `--n-tasks 15` to triage cheaply. Once
-you clear 80% on 15, double the count each iteration until you
-reach 89.
+**IMPORTANT** You must start with `--n-tasks 15` to triage cheaply, and
+exclude the slow tasks below while iterating. Once you clear 80%
+on 15, double the count each iteration until you reach 89.
+
+Triage run (use while iterating on a single edit):
+
+\`\`\`bash
+uv run harbor run \\
+--dataset terminal-bench@2.0 \\
+--agent-import-path pipeline:AutoAgent \\
+--n-concurrent 10 --n-tasks 15 --env-file .env \\
+-x 'portfolio-optimization' \\
+-x 'pytorch-model-cli' \\
+-x 'path-tracing-reverse' \\
+-x 'largest-eigenval' \\
+-x 'llm-inference-batching-scheduler' \\
+-o jobs --job-name iterN-triage
+\`\`\`
 
 ### Score stages
 
