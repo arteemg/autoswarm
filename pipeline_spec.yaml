@@ -1,6 +1,6 @@
 pipeline:
   max_total_turns: 30 # shared budget across all stages
-  model: gpt-5 # default model for all stages; override per stage
+  model: gpt-5.4-mini
 
   stages:
     - id: vanilla-agent
@@ -8,8 +8,7 @@ pipeline:
         "You are an agent that executes tasks"
       tools: [run_shell]
       max_turns: 30
-      output_format: bullet_list # meta-agent can change: bullet_list | json | prose | structured_json
-
+      output_format: bullet_list
   handoffs:
     explore→plan:
       token_budget: 600
@@ -24,4 +23,4 @@ pipeline:
     execute→verify:
       token_budget: 400
       format: prose
-      include_raw_output: true # verify needs to see actual outputs
+      include_raw_output: true
