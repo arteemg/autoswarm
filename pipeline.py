@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -10,6 +11,7 @@ from pathlib import Path
 
 import yaml
 from agents import Agent, Runner, function_tool
+from openai import AsyncOpenAI
 from agents.items import (
     ItemHelpers,
     MessageOutputItem,
@@ -29,6 +31,20 @@ from harbor.models.agent.context import AgentContext
 # ============================================================================
 
 PIPELINE_SPEC_PATH = Path(__file__).parent / "pipeline_spec.yaml"
+
+COMPRESSION_MODEL = "gpt-5.4-mini"
+
+COMPRESSION_PROMPT = """\
+You are compressing the output of stage {stage_a_id} so that stage {stage_b_id} can do its job.
+
+Stage {stage_b_id}'s role:
+{stage_b_role}
+
+Stage {stage_a_id}'s output:
+{output}
+
+Produce a summary in <={token_budget} tokens that preserves everything stage {stage_b_id} needs to succeed. Drop anything stage {stage_b_id} won't use. Preserve exact identifiers, file paths, error messages, and numbers verbatim — do not paraphrase these. Format: {format_hint}.
+"""
 
 
 def load_spec() -> dict:
@@ -66,18 +82,51 @@ def build_stage_agent(stage_cfg: dict, environment: BaseEnvironment, default_mod
     )
 
 
-def compress_handoff(output: str, handoff_cfg: dict) -> str:
-    """Trim stage output to fit the token budget before passing to next stage.
+async def compress_handoff(
+    output: str,
+    handoff_cfg: dict,
+    current_stage_cfg: dict,
+    next_stage_cfg: dict,
+) -> str:
+    """Targeted summarization of stage output, grounded in the next stage's role.
 
-    Budget is approximate (4 chars ≈ 1 token). The meta-agent should improve
-    this with smarter summarization if context loss becomes a failure mode.
+    If the output already fits the char-equivalent budget (4 chars ≈ 1 token),
+    pass it through verbatim — no API call. Otherwise call gpt-5.4-mini with
+    the downstream stage's system prompt so the summary keeps what that stage
+    actually needs. Char-truncation remains the fallback if the API call
+    fails for any reason.
     """
-    budget_chars = handoff_cfg.get("token_budget", 500) * 4
+    token_budget = handoff_cfg.get("token_budget", 500)
     fmt = handoff_cfg.get("format", "prose")
+    budget_chars = token_budget * 4
+
     if len(output) <= budget_chars:
         return output
+
+    prompt = COMPRESSION_PROMPT.format(
+        stage_a_id=current_stage_cfg["id"],
+        stage_b_id=next_stage_cfg["id"],
+        stage_b_role=next_stage_cfg["system_prompt"].strip(),
+        output=output,
+        token_budget=token_budget,
+        format_hint=fmt,
+    )
+
+    try:
+        client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        response = await client.chat.completions.create(
+            model=COMPRESSION_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=token_budget + 200,
+        )
+        compressed = (response.choices[0].message.content or "").strip()
+        if compressed:
+            return compressed
+    except Exception:
+        pass
+
     truncated = output[:budget_chars]
-    return f"[truncated to ~{handoff_cfg.get('token_budget', 500)} tokens, format={fmt}]\n{truncated}"
+    return f"[truncated to ~{token_budget} tokens, format={fmt}]\n{truncated}"
 
 
 def extract_final_output(run_result: object) -> str:
@@ -125,11 +174,12 @@ async def run_task(
         })
 
         if i < len(stages) - 1:
-            handoff_key = f"{stage_cfg['id']}→{stages[i + 1]['id']}"
+            next_stage_cfg = stages[i + 1]
+            handoff_key = f"{stage_cfg['id']}→{next_stage_cfg['id']}"
             handoff_cfg = handoffs.get(handoff_key, {})
             include_raw = handoff_cfg.get("include_raw_output", False)
-            context = output if include_raw else compress_handoff(
-                output, handoff_cfg)
+            context = output if include_raw else await compress_handoff(
+                output, handoff_cfg, stage_cfg, next_stage_cfg)
 
     duration_ms = int((time.time() - t0) * 1000)
     final_output = stage_traces[-1]["output"] if stage_traces else "(no output)"
