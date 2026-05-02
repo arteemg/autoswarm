@@ -22,7 +22,7 @@ from pathlib import Path
 
 from openai import AsyncOpenAI
 
-JUDGE_MODEL = "gpt-4o-mini"
+JUDGE_MODEL = "gpt-5.4-mini"
 
 STAGE_JUDGE_PROMPT = """\
 You are evaluating whether a pipeline stage produced useful output for the next stage.
@@ -112,7 +112,8 @@ async def evaluate_pipeline(
 
     tasks = []
     for i, trace in enumerate(stage_traces):
-        next_role = stage_traces[i + 1]["stage"] if i + 1 < len(stage_traces) else None
+        next_role = stage_traces[i + 1]["stage"] if i + \
+            1 < len(stage_traces) else None
         tasks.append(
             evaluate_stage(
                 client,
@@ -145,8 +146,10 @@ async def _main(traces_path: Path, instruction: str) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluate pipeline stage traces")
+    parser = argparse.ArgumentParser(
+        description="Evaluate pipeline stage traces")
     parser.add_argument("traces", type=Path, help="Path to stage_traces.json")
-    parser.add_argument("--instruction", required=True, help="Original task instruction text")
+    parser.add_argument("--instruction", required=True,
+                        help="Original task instruction text")
     args = parser.parse_args()
     asyncio.run(_main(args.traces, args.instruction))

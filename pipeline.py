@@ -128,7 +128,8 @@ async def run_task(
             handoff_key = f"{stage_cfg['id']}→{stages[i + 1]['id']}"
             handoff_cfg = handoffs.get(handoff_key, {})
             include_raw = handoff_cfg.get("include_raw_output", False)
-            context = output if include_raw else compress_handoff(output, handoff_cfg)
+            context = output if include_raw else compress_handoff(
+                output, handoff_cfg)
 
     duration_ms = int((time.time() - t0) * 1000)
     final_output = stage_traces[-1]["output"] if stage_traces else "(no output)"
@@ -155,7 +156,8 @@ def to_atif(result: PipelineResult, model: str, duration_ms: int = 0) -> dict:
     def _step(source: str, message: str, **extra: object) -> dict:
         nonlocal step_id
         step_id += 1
-        step = {"step_id": step_id, "timestamp": now, "source": source, "message": message}
+        step = {"step_id": step_id, "timestamp": now,
+                "source": source, "message": message}
         step.update({k: v for k, v in extra.items() if v is not None})
         return step
 
@@ -168,7 +170,8 @@ def to_atif(result: PipelineResult, model: str, duration_ms: int = 0) -> dict:
         if run_result is None:
             continue
 
-        steps.append(_step("agent", f"[stage:{stage_id}]", model_name=stage_model))
+        steps.append(
+            _step("agent", f"[stage:{stage_id}]", model_name=stage_model))
 
         pending_tool_call = None
         for item in run_result.new_items:
@@ -185,7 +188,8 @@ def to_atif(result: PipelineResult, model: str, duration_ms: int = 0) -> dict:
                 )
                 if reasoning:
                     steps.append(
-                        _step("agent", "(thinking)", reasoning_content=reasoning, model_name=stage_model)
+                        _step("agent", "(thinking)",
+                              reasoning_content=reasoning, model_name=stage_model)
                     )
             elif isinstance(item, ToolCallItem):
                 raw = item.raw_item
@@ -300,16 +304,20 @@ class AutoAgent(BaseAgent):
 
         stage_traces_path = self.logs_dir / "stage_traces.json"
         exportable = [
-            {"stage": t["stage"], "model": t.get("model", default_model), "output": t["output"]}
+            {"stage": t["stage"], "model": t.get(
+                "model", default_model), "output": t["output"]}
             for t in result.stage_traces
         ]
         stage_traces_path.write_text(json.dumps(exportable, indent=2))
 
         try:
             final_metrics = atif.get("final_metrics", {})
-            context.n_input_tokens = final_metrics.get("total_prompt_tokens", 0)
-            context.n_output_tokens = final_metrics.get("total_completion_tokens", 0)
-            context.n_cache_tokens = final_metrics.get("total_cached_tokens", 0)
+            context.n_input_tokens = final_metrics.get(
+                "total_prompt_tokens", 0)
+            context.n_output_tokens = final_metrics.get(
+                "total_completion_tokens", 0)
+            context.n_cache_tokens = final_metrics.get(
+                "total_cached_tokens", 0)
         except Exception:
             pass
 
