@@ -15,6 +15,7 @@
 
 The metric is total **passed** tasks. The meta-agent hill-climbs on this score by editing the pipeline topology.
 
+<img src="sample/sample_results.png" alt="Sample results" width="400">
 ## Quick start
 
 **Requirements:** Docker, Python 3.12+, [uv](https://docs.astral.sh/uv/), `OPENAI_API_KEY`.
@@ -52,8 +53,6 @@ uv run harbor run \
   --env-file .env \
   -o jobs --job-name latest > run.log 2>&1
 ```
-
-**Optional:** `docker build -f Dockerfile.base -t autoswarm-base .` only matters if you author tasks whose `environment/Dockerfile` uses `FROM autoswarm-base`.
 
 ## Running the meta-agent
 
