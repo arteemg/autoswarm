@@ -1,26 +1,22 @@
 pipeline:
-  max_total_turns: 30 # shared budget across all stages
-  model: gpt-5.4-mini
+  model: gpt-5
+  max_total_turns: 30
 
   stages:
-    - id: vanilla-agent
+    - id: plan
       system_prompt: |
-        "You are an agent that executes tasks"
+        You are a planner agent.
       tools: [run_shell]
-      max_turns: 30
-      output_format: bullet_list
+      max_turns: 8
+
+    - id: execute
+      system_prompt: |
+        You are an executor agent.
+      tools: [run_shell]
+      max_turns: 22
+
   handoffs:
-    explore→plan:
-      token_budget: 600
-      format: bullet_list
-      include_raw_output: false
-
     plan→execute:
-      token_budget: 800
-      format: structured_json
+      token_budget: 2000
+      format: markdown
       include_raw_output: false
-
-    execute→verify:
-      token_budget: 400
-      format: prose
-      include_raw_output: true
