@@ -16,6 +16,7 @@
 The metric is total **passed** tasks. The meta-agent hill-climbs on this score by editing the pipeline topology.
 
 <img src="sample/sample_results.png" alt="Sample results" width="600">
+
 ## Quick start
 
 **Requirements:** Docker, Python 3.12+, [uv](https://docs.astral.sh/uv/), `OPENAI_API_KEY`.
