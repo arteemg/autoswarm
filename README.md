@@ -140,28 +140,6 @@ tasks/my-task/
     Dockerfile        -- task container image for Harbor
 ```
 
-## Design choices
-
-- **Topology as config.** The pipeline structure lives in `pipeline_spec.yaml`, not in code. The meta-agent edits YAML, not Python, for most experiments.
-- **Per-stage credit assignment.** `evaluator.py` scores each stage independently, giving the meta-agent a diagnostic signal that end-to-end score alone cannot provide.
-- **Score-driven.** Every experiment produces a numeric score. Keep if better, discard if not.
-- **Docker isolation.** Task environments run in Docker; the agent runs host-side via `uv` and proxies shell into the container.
-- **Backward-compatible baseline.** `agent.py` is untouched — single-agent runs work exactly as before, swap `--agent-import-path` to compare.
-
-## Cleanup
-
-```bash
-uv run harbor cache clean -f        # Harbor task image cache
-docker system prune -a -f           # full Docker nuke
-docker container prune -f           # just dead containers
-```
-
-If Docker becomes unresponsive after many concurrent runs:
-
-```bash
-killall Docker && open -a Docker
-```
-
 ## Built on AutoAgent
 
 AutoSwarm is built on top of [AutoAgent](https://github.com/thirdlayer/autoagent) — the original single-agent self-improvement loop. The core experiment loop, Harbor integration, and `agent.py` harness are inherited directly. AutoSwarm extends the edit surface from a single agent to a multi-agent pipeline topology.
