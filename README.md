@@ -1,5 +1,12 @@
 # AutoSwarm
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Stars](https://img.shields.io/github/stars/YOUR_USERNAME/YOUR_REPO?style=social)](https://github.com/YOUR_USERNAME/YOUR_REPO)
+[![Forks](https://img.shields.io/github/forks/YOUR_USERNAME/YOUR_REPO?style=social)](https://github.com/YOUR_USERNAME/YOUR_REPO)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![uv](https://img.shields.io/badge/uv-package%20manager-purple)](https://docs.astral.sh/uv/)
+[![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://docker.com)
+
 ![AutoSwarm](autoswarm.png)
 
 > A multi-agent pipeline harness that self-optimizes its own topology. A meta-agent edits stage prompts, tool assignments, turn budgets, and pipeline structure — then reruns the benchmark, checks the score, keeps or discards the change, and repeats.
