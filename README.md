@@ -8,7 +8,7 @@
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://docker.com)
 
 <p align="center">
-  <img src="superagent.gif" alt="AutoSwarm" width="400">
+  <img src="superagent.gif" alt="AutoSwarm" width="600">
 </p>
 
 > A self-improving OpenAI-compatible proxy for local LLMs, plus a multi-agent pipeline harness that self-optimizes its own topology.
