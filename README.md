@@ -88,10 +88,10 @@ The metric is total **passed** tasks. The meta-agent hill-climbs on this score b
 Point your coding agent at the repo and prompt:
 
 ```
-Read program_pipeline.md and let's kick off a new experiment!
+Read benchmark/program_pipeline.md and let's kick off a new experiment!
 ```
 
-The meta-agent will read the directive, inspect `pipeline_spec.yaml`, run the benchmark, score each stage with `evaluator.py`, edit the topology, and iterate.
+The meta-agent will read the directive, inspect `benchmark/pipeline_spec.yaml`, run the benchmark, score each stage with `benchmark/evaluator.py`, edit the topology, and iterate.
 
 ### Project structure
 
