@@ -11,6 +11,9 @@
   <img src="superagent.gif" alt="AutoSwarm" width="600">
 </p>
 
+    <a href="https://discord.gg/9ggSRAFGKQ">
+    <img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord" />
+  </a>
 > A self-improving OpenAI-compatible proxy for local LLMs, plus a multi-agent pipeline harness that self-optimizes its own topology.
 
 AutoSwarm runs in two modes:
