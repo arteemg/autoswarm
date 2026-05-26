@@ -8,7 +8,7 @@
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://docker.com)
 
 <p align="center">
-  <img src="superagent_solo.gif" alt="AutoSwarm" width="600">
+  <img src="superagent_solo.gif" alt="AutoSwarm" width="300">
   <br>
   <a href="https://discord.gg/9ggSRAFGKQ">
     <img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white" alt="Discord" />
